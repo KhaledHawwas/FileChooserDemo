@@ -1,8 +1,8 @@
 package com.hawwas.videofilechooser;
 
 import static android.Manifest.permission.READ_EXTERNAL_STORAGE;
-import static android.content.Intent.ACTION_OPEN_DOCUMENT;
 
+import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
@@ -22,11 +22,9 @@ import androidx.core.view.WindowInsetsCompat;
 
 import com.hawwas.videofilechooser.databinding.ActivityMainBinding;
 
-import java.util.Objects;
-
 public class MainActivity extends AppCompatActivity {
     private ActivityMainBinding binding;
-    private final int REQUEST_CODE = 1;
+    private final int REQUEST_CODE = 2;
     Uri tempUri;
 
     @Override
@@ -52,21 +50,29 @@ public class MainActivity extends AppCompatActivity {
             intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
             startActivityForResult(intent, REQUEST_CODE);
         });
+        setFileInfo();
+        binding.shareBtn.setOnClickListener(v -> accessVideo(getSavedUri()));
+    }
+
+    private void setFileInfo() {
         Uri videoUri = getSavedUri();
         if (videoUri != null) {
             Cursor cursor = getContentResolver().query(videoUri, null, null, null, null);
             if (cursor != null && cursor.moveToFirst()) {
-                int s= cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME);
-                if (s == -1) {
-                    Toast.makeText(this, "File not found", Toast.LENGTH_SHORT).show();
-                    return;
+                String name = null;
+                int nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME);
+                int sizeIndex = cursor.getColumnIndex(OpenableColumns.SIZE);
+                if (nameIndex != -1) {
+                    name = cursor.getString(nameIndex);
                 }
-                String displayName = cursor.getString(s);
+                long size = 0;
+                if (sizeIndex != -1) {
+                    size = cursor.getLong(sizeIndex);
+                }
                 cursor.close();
-                binding.fileInfoTv.setText(displayName);
+                binding.fileInfoTv.setText(name + "\n" + size);
             }
         }
-        binding.shareBtn.setOnClickListener(v -> accessVideo(getSavedUri()));
     }
 
     @Override
@@ -75,14 +81,13 @@ public class MainActivity extends AppCompatActivity {
         if (requestCode == REQUEST_CODE && resultCode == RESULT_OK && data != null) {
             Uri videoUri = data.getData();
 
-tempUri=videoUri;
+            tempUri = videoUri;
             // Persist permission
             final int takeFlags = data.getFlags() & (Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
 //            getContentResolver().takePersistableUriPermission(videoUri, takeFlags);
             // Save the URI for future access
             saveUri(videoUri);
-
-
+         setFileInfo();
         }
 
     }
@@ -93,13 +98,14 @@ tempUri=videoUri;
         editor.putString("videoUri", uri.toString());
         editor.apply();
     }
+
     private Uri getSavedUri() {
         SharedPreferences sharedPreferences = getSharedPreferences("MyAppPrefs", MODE_PRIVATE);
         String uriString = sharedPreferences.getString("videoUri", null);
         return uriString != null ? Uri.parse(uriString) : null;
     }
 
-    private void accessVideo(Uri videoUri ) {
+    private void accessVideo(Uri videoUri) {
         if (videoUri != null) {
             shareVideo(videoUri);
         } else {
@@ -116,7 +122,7 @@ tempUri=videoUri;
 
         try {
             startActivity(shareIntent);
-        } catch (android.content.ActivityNotFoundException ex) {
+        } catch (ActivityNotFoundException ex) {
             Toast.makeText(this, "WhatsApp is not installed.", Toast.LENGTH_SHORT).show();
         }
     }
